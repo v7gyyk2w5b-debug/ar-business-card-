@@ -78,11 +78,10 @@ window.addEventListener('unhandledrejection', (e) => log("REJECT: " + (e.reason 
 const setStatus = (msg) => { statusEl.textContent = msg; log(msg); };
 
 // --- CONFIG -----------------------------------------------------------
-// PLACEHOLDER target: MindAR's own public sample card, so we can test the
-// splat pipeline before we compile our real business card as a target.
-// Swap this for /assets/card.mind once you've compiled the real card
-// (see README.md — "Compile your real card as the AR target").
-const TARGET_SRC = "https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.0.0/examples/image-tracking/assets/card-example/card.mind";
+// PLACEHOLDER target: MindAR's sample card, now hosted locally in ./assets
+// (the upstream tagged URL 404s — the files only exist on master).
+// Swap this for ./assets/card.mind once you've compiled your real card.
+const TARGET_SRC = "./assets/sample-card.mind";
 
 // PLACEHOLDER splat: a generated rainbow point-cloud, just to prove the
 // render pipeline works. Swap for your real captured splat later
