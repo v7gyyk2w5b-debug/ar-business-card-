@@ -29,6 +29,12 @@
     font-family: -apple-system, system-ui, sans-serif; color: #fff; font-size: 13px;
     background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 20px;
   }
+  #debug {
+    position: fixed; z-index: 11; bottom: 58px; left: 8px; right: 8px;
+    font-family: ui-monospace, monospace; color: #6f6; font-size: 11px;
+    background: rgba(0,0,0,.78); padding: 8px 10px; border-radius: 8px;
+    max-height: 32vh; overflow-y: auto; white-space: pre-wrap;
+  }
 </style>
 
 <!-- Import map: everything loads from CDN at runtime, no build step needed -->
@@ -52,6 +58,7 @@
   <h1>Taurid Media — AR test</h1>
   <p>Point at the target card. No app needed.</p>
 </div>
+<div id="debug">booting…</div>
 <div id="status">Loading…</div>
 
 <script type="module">
@@ -60,7 +67,15 @@ import { MindARThree } from 'mindar-image-three';
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 
 const statusEl = document.getElementById('status');
-const setStatus = (msg) => { statusEl.textContent = msg; };
+const debugEl = document.getElementById('debug');
+const lines = [];
+const log = (msg) => {
+  lines.push(msg);
+  debugEl.textContent = lines.slice(-14).join("\n");
+};
+window.addEventListener('error', (e) => log("ERR: " + (e.message || e)));
+window.addEventListener('unhandledrejection', (e) => log("REJECT: " + (e.reason && e.reason.message ? e.reason.message : e.reason)));
+const setStatus = (msg) => { statusEl.textContent = msg; log(msg); };
 
 // --- CONFIG -----------------------------------------------------------
 // PLACEHOLDER target: MindAR's own public sample card, so we can test the
@@ -90,6 +105,17 @@ scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
 const anchor = mindarThree.addAnchor(0);
 
+// CONTROL OBJECT: a plain cube with no dependencies on the splat pipeline.
+// If tracking works, this appears on the card even if the splat fails.
+// That separates "tracking broken" from "splat broken".
+const testCube = new THREE.Mesh(
+  new THREE.BoxGeometry(0.2, 0.2, 0.2),
+  new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true })
+);
+testCube.position.set(0, 0, 0.1);
+anchor.group.add(testCube);
+log("test cube added to anchor");
+
 // Gaussian splat viewer, dropped in as a Three.js object under the anchor.
 // DropInViewer extends THREE.Group, so it behaves like any other object
 // you'd parent to the tracked image.
@@ -101,26 +127,26 @@ const splatViewer = new GaussianSplats3D.DropInViewer({
 
 anchor.group.add(splatViewer);
 
+log("loading splat…");
 splatViewer.addSplatScene(SPLAT_SRC, {
   splatAlphaRemovalThreshold: 5,
+  showLoadingUI: false,
   position: [0, 0, 0],
   rotation: [0, 0, 0, 1],
   scale: [1, 1, 1],
 }).then(() => {
-  setStatus("Ready — point camera at the target");
+  log("splat loaded OK");
 }).catch((err) => {
-  console.error(err);
-  setStatus("Splat failed to load — see console");
+  log("SPLAT FAIL: " + (err && err.message ? err.message : err));
 });
 
-anchor.onTargetFound = () => setStatus("Target found ✨");
-anchor.onTargetLost = () => setStatus("Looking for target…");
+anchor.onTargetFound = () => setStatus("TARGET FOUND");
+anchor.onTargetLost = () => setStatus("target lost");
 
 const start = async () => {
   await mindarThree.start();
+  setStatus("Camera running — looking for target…");
   renderer.setAnimationLoop(() => {
-    splatViewer.update();
-    splatViewer.render();
     renderer.render(scene, camera);
   });
 };
