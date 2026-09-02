@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Taurid Media — AR Business Card (test)</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #000; }
+  #overlay {
+    position: fixed; z-index: 10; top: 0; left: 0; width: 100%;
+    padding: 14px 16px; box-sizing: border-box;
+    font-family: -apple-system, system-ui, sans-serif; color: #fff;
+    background: linear-gradient(rgba(0,0,0,.55), transparent);
+    pointer-events: none;
+  }
+  #overlay h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  #overlay p { font-size: 12px; margin: 0; opacity: .8; }
+  #status {
+    position: fixed; z-index: 10; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-family: -apple-system, system-ui, sans-serif; color: #fff; font-size: 13px;
+    background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 20px;
+  }
+</style>
+
+<!-- Import map: everything loads from CDN at runtime, no build step needed -->
+<script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js",
+    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.4/build/gaussian-splats-3d.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="overlay">
+  <h1>Taurid Media — AR test</h1>
+  <p>Point at the target card. No app needed.</p>
+</div>
+<div id="status">Loading…</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { MindARThree } from 'mindar-image-three';
+import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
+
+const statusEl = document.getElementById('status');
+const setStatus = (msg) => { statusEl.textContent = msg; };
+
+// --- CONFIG -----------------------------------------------------------
+// PLACEHOLDER target: MindAR's own public sample card, so we can test the
+// splat pipeline before we compile our real business card as a target.
+// Swap this for /assets/card.mind once you've compiled the real card
+// (see README.md — "Compile your real card as the AR target").
+const TARGET_SRC = "https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.0.0/examples/image-tracking/assets/card-example/card.mind";
+
+// PLACEHOLDER splat: a generated rainbow point-cloud, just to prove the
+// render pipeline works. Swap for your real captured splat later
+// (see README.md — "Swap in a real gaussian splat").
+const SPLAT_SRC = "./assets/placeholder.splat";
+// ------------------------------------------------------------------------
+
+setStatus("Starting camera…");
+
+const mindarThree = new MindARThree({
+  container: document.body,
+  imageTargetSrc: TARGET_SRC,
+});
+
+const { renderer, scene, camera } = mindarThree;
+renderer.setPixelRatio(window.devicePixelRatio);
+
+// Basic light, harmless if the splat viewer doesn't need it
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+const anchor = mindarThree.addAnchor(0);
+
+// Gaussian splat viewer, dropped in as a Three.js object under the anchor.
+// DropInViewer extends THREE.Group, so it behaves like any other object
+// you'd parent to the tracked image.
+const splatViewer = new GaussianSplats3D.DropInViewer({
+  selfDrivenMode: false,   // MindAR drives the render loop, not the splat viewer
+  dropInMode: true,
+  sharedMemoryForWorkers: false,
+});
+
+anchor.group.add(splatViewer);
+
+splatViewer.addSplatScene(SPLAT_SRC, {
+  splatAlphaRemovalThreshold: 5,
+  position: [0, 0, 0],
+  rotation: [0, 0, 0, 1],
+  scale: [1, 1, 1],
+}).then(() => {
+  setStatus("Ready — point camera at the target");
+}).catch((err) => {
+  console.error(err);
+  setStatus("Splat failed to load — see console");
+});
+
+anchor.onTargetFound = () => setStatus("Target found ✨");
+anchor.onTargetLost = () => setStatus("Looking for target…");
+
+const start = async () => {
+  await mindarThree.start();
+  renderer.setAnimationLoop(() => {
+    splatViewer.update();
+    splatViewer.render();
+    renderer.render(scene, camera);
+  });
+};
+
+start().catch((err) => {
+  console.error(err);
+  setStatus("Camera/AR failed to start — see console");
+});
+</script>
+</body>
+</html>
