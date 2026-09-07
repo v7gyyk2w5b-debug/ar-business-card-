@@ -35,6 +35,17 @@
     background: rgba(0,0,0,.78); padding: 8px 10px; border-radius: 8px;
     max-height: 32vh; overflow-y: auto; white-space: pre-wrap;
   }
+  #controls {
+    position: fixed; z-index: 12; bottom: 96px; left: 8px; right: 8px;
+    display: flex; gap: 8px; justify-content: center;
+  }
+  #controls button {
+    font-family: -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 600;
+    padding: 10px 16px; border-radius: 20px; border: none;
+    color: #fff; background: #333;
+  }
+  #controls button.recording { background: #d32f2f; }
+  #controls button:disabled { opacity: .4; }
 </style>
 
 <!-- Import map: everything loads from CDN at runtime, no build step needed -->
@@ -57,6 +68,10 @@
 <div id="overlay">
   <h1>Taurid Media — AR test</h1>
   <p>Point at the target card. No app needed.</p>
+</div>
+<div id="controls">
+  <button id="recordBtn">● Record</button>
+  <button id="exportBtn" disabled>Export log</button>
 </div>
 <div id="debug">booting…</div>
 <div id="status">Loading…</div>
@@ -150,11 +165,90 @@ setupAnchorContent(anchors[0], "face A");
 setupAnchorContent(anchors[1], "face B");
 log("content wired to both anchors");
 
+// --- TELEMETRY: real per-frame tracking data for diagnosing instability ---
+// Captures, for each anchor, every frame: timestamp, visible (found/lost),
+// and position/rotation when visible. Exported as JSON so instability can
+// be diagnosed from actual data (jitter magnitude, flicker timing) rather
+// than guesswork. This only records what already happens on your phone
+// during a real test — nothing here is simulated.
+let isRecording = false;
+let recordStartTime = 0;
+const MAX_FRAMES = 4000; // ~2-3 min at 30fps, generous cap to avoid runaway memory
+const telemetry = { faceA: [], faceB: [] };
+const anchorLabels = ["faceA", "faceB"];
+const _pos = new THREE.Vector3();
+const _quat = new THREE.Quaternion();
+const _scale = new THREE.Vector3();
+
+function recordFrame(elapsedMs) {
+  for (let i = 0; i < anchors.length; i++) {
+    const g = anchors[i].group;
+    const entry = { t: Math.round(elapsedMs), visible: g.visible };
+    if (g.visible) {
+      g.matrix.decompose(_pos, _quat, _scale);
+      entry.pos = [_pos.x, _pos.y, _pos.z].map(v => Math.round(v * 10000) / 10000);
+      entry.quat = [_quat.x, _quat.y, _quat.z, _quat.w].map(v => Math.round(v * 10000) / 10000);
+    }
+    telemetry[anchorLabels[i]].push(entry);
+  }
+  if (telemetry.faceA.length >= MAX_FRAMES) {
+    stopRecording();
+    log("auto-stopped: hit frame cap");
+  }
+}
+
+function startRecording() {
+  telemetry.faceA = [];
+  telemetry.faceB = [];
+  recordStartTime = performance.now();
+  isRecording = true;
+  recordBtn.textContent = "■ Stop";
+  recordBtn.classList.add("recording");
+  exportBtn.disabled = true;
+  log("recording started");
+}
+
+function stopRecording() {
+  isRecording = false;
+  recordBtn.textContent = "● Record";
+  recordBtn.classList.remove("recording");
+  exportBtn.disabled = telemetry.faceA.length === 0;
+  log(`recording stopped — ${telemetry.faceA.length} frames captured`);
+}
+
+function exportLog() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    durationMs: telemetry.faceA.length ? telemetry.faceA[telemetry.faceA.length - 1].t : 0,
+    frameCount: telemetry.faceA.length,
+    faceA: telemetry.faceA,
+    faceB: telemetry.faceB,
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ar-tracking-log-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  log("log exported");
+}
+
+const recordBtn = document.getElementById("recordBtn");
+const exportBtn = document.getElementById("exportBtn");
+recordBtn.addEventListener("click", () => isRecording ? stopRecording() : startRecording());
+exportBtn.addEventListener("click", exportLog);
+// --------------------------------------------------------------------------
+
 const start = async () => {
   await mindarThree.start();
   setStatus("Camera running — looking for target…");
+  const clock0 = performance.now();
   renderer.setAnimationLoop(() => {
     renderer.render(scene, camera);
+    if (isRecording) recordFrame(performance.now() - clock0);
   });
 };
 
