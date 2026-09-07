@@ -78,10 +78,9 @@ window.addEventListener('unhandledrejection', (e) => log("REJECT: " + (e.reason 
 const setStatus = (msg) => { statusEl.textContent = msg; log(msg); };
 
 // --- CONFIG -----------------------------------------------------------
-// PLACEHOLDER target: MindAR's sample card, now hosted locally in ./assets
-// (the upstream tagged URL 404s — the files only exist on master).
-// Swap this for ./assets/card.mind once you've compiled your real card.
-const TARGET_SRC = "./assets/sample-card.mind";
+// REAL TARGET: Kyal's compiled business card (QR-code side — best tracking
+// features). Compiled via MindAR's browser tool from the print-ready PDF.
+const TARGET_SRC = "./assets/card.mind";
 
 // PLACEHOLDER splat: a generated rainbow point-cloud, just to prove the
 // render pipeline works. Swap for your real captured splat later
