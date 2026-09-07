@@ -114,7 +114,10 @@ const mindarThree = new MindARThree({
   filterMinCF: 0.0005,   // lower = smoother pose, less jitter (small added lag)
   filterBeta: 10,        // lower = less overshoot on fast movement (was 1000 — very twitchy)
   warmupTolerance: 3,    // fewer good frames needed before it commits to "found"
-  missTolerance: 10,     // more bad frames tolerated before it flips to "lost" — stops flicker
+  missTolerance: 18,     // was 10 (~170ms @ ~59fps) — real telemetry showed two
+                          // near-threshold flicker gaps at 231ms/267ms; 18 frames
+                          // (~300ms) bridges those without masking genuine long
+                          // feature-loss gaps (765ms-1.45s) seen at extreme tilt
 });
 
 const { renderer, scene, camera } = mindarThree;
