@@ -93,6 +93,12 @@ setStatus("Starting camera…");
 const mindarThree = new MindARThree({
   container: document.querySelector("#ar-container"),
   imageTargetSrc: TARGET_SRC,
+  // Tuning for stability over raw responsiveness — defaults are
+  // filterMinCF: 0.001, filterBeta: 1000, warmupTolerance: 5, missTolerance: 5
+  filterMinCF: 0.0005,   // lower = smoother pose, less jitter (small added lag)
+  filterBeta: 10,        // lower = less overshoot on fast movement (was 1000 — very twitchy)
+  warmupTolerance: 3,    // fewer good frames needed before it commits to "found"
+  missTolerance: 10,     // more bad frames tolerated before it flips to "lost" — stops flicker
 });
 
 const { renderer, scene, camera } = mindarThree;
