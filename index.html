@@ -98,10 +98,24 @@ const setStatus = (msg) => { statusEl.textContent = msg; log(msg); };
 // so tracking works whichever side faces the camera.
 const TARGET_SRC = "./assets/card.mind";
 
-// PLACEHOLDER splat: a generated rainbow point-cloud, just to prove the
-// render pipeline works. Swap for your real captured splat later
-// (see README.md — "Swap in a real gaussian splat").
-const SPLAT_SRC = "./assets/placeholder.splat";
+// REAL SPLAT: Kyal's captured scene, converted from a 397MB full-quality
+// PLY export down to mobile-friendly .ksplat files (see convert.mjs /
+// decimate_ply.py in the repo for how — SH dropped, splat count reduced,
+// weighted to keep higher-opacity/larger splats).
+//   scene-light.ksplat = 420k splats, ~10MB  (default — realistic for phones)
+//   scene-full.ksplat  = 1.68M splats, ~38MB (higher quality, heavier load)
+const SPLAT_SRC = "./assets/scene-light.ksplat";
+
+// Computed from the source PLY's real bounding box (extent ~4.5 x 3.7 x 3.0,
+// centroid ~[-0.15, -1.83, -0.02]) so the scene sits at a sensible size
+// above the card rather than at capture scale. Starting point only —
+// the capture's "up" axis may not match the card's, so rotation will
+// likely need visual tuning once you actually see it rendered.
+const SPLAT_TRANSFORM = {
+  position: [0.0154, 0.409, 0.0023],
+  rotation: [0, 0, 0, 1],
+  scale: [0.1, 0.1, 0.1],
+};
 // ------------------------------------------------------------------------
 
 setStatus("Starting camera…");
@@ -151,9 +165,9 @@ function setupAnchorContent(anchor, label) {
   splatViewer.addSplatScene(SPLAT_SRC, {
     splatAlphaRemovalThreshold: 5,
     showLoadingUI: false,
-    position: [0, 0, 0],
-    rotation: [0, 0, 0, 1],
-    scale: [1, 1, 1],
+    position: SPLAT_TRANSFORM.position,
+    rotation: SPLAT_TRANSFORM.rotation,
+    scale: SPLAT_TRANSFORM.scale,
   }).then(() => {
     log(`[${label}] splat loaded OK`);
   }).catch((err) => {
