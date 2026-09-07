@@ -78,8 +78,9 @@ window.addEventListener('unhandledrejection', (e) => log("REJECT: " + (e.reason 
 const setStatus = (msg) => { statusEl.textContent = msg; log(msg); };
 
 // --- CONFIG -----------------------------------------------------------
-// REAL TARGET: Kyal's compiled business card (QR-code side — best tracking
-// features). Compiled via MindAR's browser tool from the print-ready PDF.
+// REAL TARGET: Kyal's compiled business card — now with BOTH faces
+// (logo/front + QR/back) compiled into one file as two targets,
+// so tracking works whichever side faces the camera.
 const TARGET_SRC = "./assets/card.mind";
 
 // PLACEHOLDER splat: a generated rainbow point-cloud, just to prove the
@@ -107,45 +108,47 @@ renderer.setPixelRatio(window.devicePixelRatio);
 // Basic light, harmless if the splat viewer doesn't need it
 scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
-const anchor = mindarThree.addAnchor(0);
+const anchors = [0, 1].map((idx) => mindarThree.addAnchor(idx));
 
-// CONTROL OBJECT: a plain cube with no dependencies on the splat pipeline.
-// If tracking works, this appears on the card even if the splat fails.
-// That separates "tracking broken" from "splat broken".
-const testCube = new THREE.Mesh(
-  new THREE.BoxGeometry(0.2, 0.2, 0.2),
-  new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true })
-);
-testCube.position.set(0, 0, 0.1);
-anchor.group.add(testCube);
-log("test cube added to anchor");
+// Sets up identical content (control cube + splat) on a given anchor.
+// Both faces of the card are separate targets in the compiled .mind file,
+// so each needs its own independent cube + splat viewer instance —
+// content can't be shared across two different anchor groups.
+function setupAnchorContent(anchor, label) {
+  const testCube = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2, 0.2, 0.2),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true })
+  );
+  testCube.position.set(0, 0, 0.1);
+  anchor.group.add(testCube);
 
-// Gaussian splat viewer, dropped in as a Three.js object under the anchor.
-// DropInViewer extends THREE.Group, so it behaves like any other object
-// you'd parent to the tracked image.
-const splatViewer = new GaussianSplats3D.DropInViewer({
-  selfDrivenMode: false,   // MindAR drives the render loop, not the splat viewer
-  dropInMode: true,
-  sharedMemoryForWorkers: false,
-});
+  const splatViewer = new GaussianSplats3D.DropInViewer({
+    selfDrivenMode: false,
+    dropInMode: true,
+    sharedMemoryForWorkers: false,
+  });
+  anchor.group.add(splatViewer);
 
-anchor.group.add(splatViewer);
+  log(`[${label}] loading splat…`);
+  splatViewer.addSplatScene(SPLAT_SRC, {
+    splatAlphaRemovalThreshold: 5,
+    showLoadingUI: false,
+    position: [0, 0, 0],
+    rotation: [0, 0, 0, 1],
+    scale: [1, 1, 1],
+  }).then(() => {
+    log(`[${label}] splat loaded OK`);
+  }).catch((err) => {
+    log(`[${label}] SPLAT FAIL: ` + (err && err.message ? err.message : err));
+  });
 
-log("loading splat…");
-splatViewer.addSplatScene(SPLAT_SRC, {
-  splatAlphaRemovalThreshold: 5,
-  showLoadingUI: false,
-  position: [0, 0, 0],
-  rotation: [0, 0, 0, 1],
-  scale: [1, 1, 1],
-}).then(() => {
-  log("splat loaded OK");
-}).catch((err) => {
-  log("SPLAT FAIL: " + (err && err.message ? err.message : err));
-});
+  anchor.onTargetFound = () => setStatus(`TARGET FOUND (${label})`);
+  anchor.onTargetLost = () => setStatus("target lost");
+}
 
-anchor.onTargetFound = () => setStatus("TARGET FOUND");
-anchor.onTargetLost = () => setStatus("target lost");
+setupAnchorContent(anchors[0], "face A");
+setupAnchorContent(anchors[1], "face B");
+log("content wired to both anchors");
 
 const start = async () => {
   await mindarThree.start();
